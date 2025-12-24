@@ -1,4 +1,4 @@
-const CACHE_NAME = 'jarvis-mkx-boot-v1';
+const CACHE_NAME = 'jarvis-mkxi-auto-v2';
 const ASSETS = [
     './',
     './index.html',
