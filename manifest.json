@@ -1,0 +1,23 @@
+{
+    "name": "J.A.R.V.I.S. MK-85",
+    "short_name": "Jarvis",
+    "start_url": "./index.html",
+    "display": "standalone",
+    "background_color": "#000000",
+    "theme_color": "#00f2ff",
+    "orientation": "portrait",
+    "icons": [
+        {
+            "src": "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRlAUhaSQQ-WtJXZKNtbCVavILA0uMI5hvEvuwiBs30Z2wUJPJdIcPTKXg&s",
+            "sizes": "192x192",
+            "type": "image/jpeg",
+            "purpose": "any maskable"
+        },
+        {
+            "src": "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRlAUhaSQQ-WtJXZKNtbCVavILA0uMI5hvEvuwiBs30Z2wUJPJdIcPTKXg&s",
+            "sizes": "512x512",
+            "type": "image/jpeg",
+            "purpose": "any maskable"
+        }
+    ]
+}
