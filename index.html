@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>JARVIS MK-X</title>
+    <title>JARVIS MK-XI</title>
     
     <!-- PWA -->
     <link rel="manifest" href="manifest.json">
@@ -12,7 +12,6 @@
     <!-- CORES -->
     <script src="https://aframe.io/releases/1.4.0/aframe.min.js"></script>
     <script src="https://unpkg.com/compromise"></script>
-    <!-- MEDIAPIPE (Lazy loaded by script for speed, but link here for cache) -->
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
 
@@ -21,229 +20,226 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 
     <style>
-        :root { --primary: #00f2ff; --bg: #000; --glass: rgba(0, 10, 20, 0.8); }
+        :root { --primary: #00f2ff; --warn: #ffcc00; --bg: #000; --glass: rgba(0, 10, 20, 0.85); }
         * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
         body { margin: 0; overflow: hidden; background: var(--bg); color: var(--primary); font-family: 'Rajdhani', sans-serif; height: 100vh; width: 100vw; }
 
-        /* --- 1. BOOT SCREEN (The Overlay) --- */
+        /* BOOT SCREEN */
         #boot-screen {
             position: fixed; top: 0; left: 0; width: 100%; height: 100%;
             background: #000; z-index: 9999;
             display: flex; flex-direction: column; justify-content: center; align-items: center;
-            text-align: center; cursor: pointer;
+            cursor: pointer;
         }
-        .boot-circle {
-            width: 80px; height: 80px; border: 4px solid var(--primary); border-top-color: transparent;
-            border-radius: 50%; animation: spin 1s linear infinite; margin-bottom: 20px;
-        }
-        .boot-text { font-family: 'Share Tech Mono'; font-size: 14px; letter-spacing: 2px; color: #fff; }
-        .tap-hint { margin-top: 20px; font-size: 12px; color: #aaa; animation: flash 1s infinite; }
+        .spinner { width: 60px; height: 60px; border: 4px solid var(--primary); border-top-color: transparent; border-radius: 50%; animation: spin 1s linear infinite; margin-bottom: 20px; }
+        .tap-msg { font-family: 'Share Tech Mono'; animation: blink 1s infinite; font-size: 14px; }
 
-        /* --- 2. MAIN LAYERS --- */
-        #cam-feed { position: fixed; top:0; left:0; width:100%; height:100%; object-fit: cover; z-index: -2; filter: brightness(0.7); }
+        /* VIDEO & AR */
+        #cam-feed { position: fixed; top:0; left:0; width:100%; height:100%; object-fit: cover; z-index: -2; filter: brightness(0.6); }
         #ar-scene { position: fixed; top:0; left:0; width:100%; height:100%; z-index: 1; pointer-events: none; }
         
-        /* --- 3. HUD --- */
-        #hud { position: absolute; top:0; left:0; width:100%; height:100%; z-index: 10; padding: 20px; pointer-events: none; display: flex; flex-direction: column; justify-content: space-between; }
+        /* HUD */
+        #hud { position: absolute; top:0; left:0; width:100%; height:100%; z-index: 10; padding: 15px; pointer-events: none; display: flex; flex-direction: column; justify-content: space-between; }
         
-        .top-bar { display: flex; justify-content: space-between; align-items: flex-start; }
-        .widget { background: var(--glass); border: 1px solid var(--primary); padding: 5px 12px; font-family: 'Share Tech Mono'; font-size: 10px; margin-bottom: 5px; clip-path: polygon(10px 0, 100% 0, 100% 100%, 0 100%, 0 10px); }
+        .top-deck { display: flex; justify-content: space-between; }
+        .badge { background: var(--glass); border: 1px solid var(--primary); padding: 5px 10px; font-family: 'Share Tech Mono'; font-size: 11px; clip-path: polygon(10px 0, 100% 0, 100% 100%, 0 100%, 0 10px); }
         
         #console { text-align: center; font-family: 'Share Tech Mono'; font-size: 12px; color: #fff; text-shadow: 0 0 5px var(--primary); margin-bottom: 20px; }
         
-        /* Cursor for Hands */
+        /* HAND CURSOR */
         #hand-cursor { 
-            position: absolute; width: 30px; height: 30px; border: 2px solid var(--primary); border-radius: 50%; 
+            position: absolute; width: 40px; height: 40px; 
+            border: 2px dashed var(--primary); border-radius: 50%; 
             transform: translate(-50%, -50%); display: none; pointer-events: none; z-index: 20; 
-            box-shadow: 0 0 15px var(--primary); transition: width 0.1s, background 0.1s;
+            box-shadow: 0 0 15px var(--primary); transition: width 0.1s;
         }
-        #hand-cursor.locked { background: rgba(0, 242, 255, 0.3); width: 15px; height: 15px; border-color: #fff; }
+        #hand-cursor.locked { border-color: var(--warn); background: rgba(255, 204, 0, 0.2); width: 20px; height: 20px; border-style: solid; }
 
         @keyframes spin { 100% { transform: rotate(360deg); } }
-        @keyframes flash { 50% { opacity: 0.3; } }
-        .hidden { display: none !important; }
+        @keyframes blink { 50% { opacity: 0.5; } }
+        .hidden { opacity: 0; pointer-events: none; transition: opacity 0.5s; }
     </style>
 </head>
 <body>
 
-    <!-- BOOT SCREEN (Auto Init Layer) -->
+    <!-- BOOT OVERLAY -->
     <div id="boot-screen" onclick="sys.boot()">
-        <div class="boot-circle"></div>
-        <div class="boot-text">J.A.R.V.I.S. MK-X</div>
-        <div class="boot-text" style="font-size:10px; margin-top:5px; color:#555;">SYSTEM PRE-CHECK COMPLETE</div>
-        <div class="tap-hint">[ TAP ANYWHERE TO INITIALIZE ]</div>
+        <div class="spinner"></div>
+        <div style="margin-bottom: 10px; font-weight: bold; letter-spacing: 2px;">JARVIS MK-XI</div>
+        <div class="tap-msg">[ TAP TO INITIALIZE ]</div>
     </div>
 
-    <!-- MAIN UI -->
+    <!-- CAMERA -->
     <video id="cam-feed" autoplay muted playsinline></video>
+    
+    <!-- AR CURSOR -->
     <div id="hand-cursor"></div>
 
+    <!-- AR WORLD -->
     <a-scene id="ar-scene" embedded vr-mode-ui="enabled: false">
         <a-entity id="rig" position="0 1.6 0"><a-entity camera look-controls="enabled: false"></a-entity></a-entity>
         <a-light type="ambient" color="#FFF" intensity="0.8"></a-light>
         <a-entity id="anchor" position="0 1.6 -3"></a-entity>
     </a-scene>
 
+    <!-- HUD -->
     <div id="hud">
-        <div class="top-bar">
+        <div class="top-deck">
             <div>
-                <div class="widget">SYS: ONLINE</div>
-                <div class="widget" id="hand-stat">HANDS: OFF</div>
+                <div class="badge">MK-XI ACTIVE</div>
+                <!-- Default text is now LOADING, not OFF -->
+                <div class="badge" id="hand-stat">HANDS: LOADING...</div>
             </div>
-            <div class="widget" id="clock">00:00</div>
+            <div class="badge" id="clock">00:00</div>
         </div>
-        <div id="console">>> WAITING FOR BOOT SEQUENCE...</div>
+        <div id="console">>> SYSTEM STANDBY</div>
     </div>
 
     <script>
         const ui = {
             boot: document.getElementById('boot-screen'),
-            console: document.getElementById('console'),
             video: document.getElementById('cam-feed'),
+            console: document.getElementById('console'),
+            handStat: document.getElementById('hand-stat'),
             cursor: document.getElementById('hand-cursor'),
             anchor: document.getElementById('anchor'),
-            handStat: document.getElementById('hand-stat'),
             clock: document.getElementById('clock')
         };
 
         let activeModel = null;
-        let isGrabbed = false;
 
-        // --- 1. SYSTEM BOOTLOADER ---
+        // --- 1. SYSTEM BOOT ---
         const sys = {
             booted: false,
-            boot: async () => {
+            boot: () => {
                 if(sys.booted) return;
                 sys.booted = true;
+                
+                // 1. Hide Boot Screen
+                ui.boot.classList.add('hidden');
+                
+                // 2. Immediate Feedback
+                voice.speak("System initialized. Hand tracking engines engaged.");
+                ui.console.innerText = ">> SENSORS ONLINE";
+                ui.handStat.innerText = "HANDS: SCANNING"; // Set status to scanning immediately
 
-                // UI Transition
-                ui.boot.style.opacity = '0';
-                setTimeout(() => ui.boot.classList.add('hidden'), 500);
-
-                // 1. Audio Init
-                voice.speak("System initialized.");
-                
-                // 2. Camera Init
-                await cam.init();
-                
-                // 3. Hands Init (Background)
-                hands.init();
-                
-                // 4. Voice Listen
+                // 3. Start Cores
+                hands.init(); // Auto-starts camera
                 voice.listen();
                 
-                // 5. Utils
+                // 4. Clock
                 setInterval(() => ui.clock.innerText = new Date().toLocaleTimeString(), 1000);
-                ui.console.innerText = ">> COMMANDS LISTENING...";
             }
         };
 
-        // --- 2. CAMERA CORE ---
-        const cam = {
-            init: async () => {
-                try {
-                    const stream = await navigator.mediaDevices.getUserMedia({
-                        video: { facingMode: 'environment', width: {ideal: 1280}, height: {ideal: 720} }
-                    });
-                    ui.video.srcObject = stream;
-                } catch(e) {
-                    alert("Camera Permission Required!");
-                }
-            }
-        };
-
-        // --- 3. HAND TRACKING CORE ---
+        // --- 2. HAND TRACKING (AUTO-START) ---
         const hands = {
-            instance: null,
             camera: null,
             init: () => {
-                hands.instance = new Hands({locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`});
-                hands.instance.setOptions({maxNumHands: 1, modelComplexity: 1, minDetectionConfidence: 0.6});
-                hands.instance.onResults(hands.onResult);
+                const handMesh = new Hands({locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`});
                 
+                handMesh.setOptions({
+                    maxNumHands: 1,
+                    modelComplexity: 1,
+                    minDetectionConfidence: 0.5,
+                    minTrackingConfidence: 0.5
+                });
+                
+                handMesh.onResults(hands.onResult);
+
+                // This Camera Utils class handles the video feed automatically
                 hands.camera = new Camera(ui.video, {
-                    onFrame: async () => { await hands.instance.send({image: ui.video}); },
+                    onFrame: async () => { await handMesh.send({image: ui.video}); },
                     width: 1280, height: 720
                 });
+                
                 hands.camera.start();
+                console.log("Camera & Hands Started");
             },
+
             onResult: (results) => {
-                if(results.multiHandLandmarks.length > 0) {
+                // If hands found
+                if (results.multiHandLandmarks.length > 0) {
                     ui.handStat.innerText = "HANDS: LOCKED";
                     ui.handStat.style.borderColor = "#00f2ff";
-                    
+                    ui.handStat.style.color = "#00f2ff";
+
                     const lm = results.multiHandLandmarks[0];
                     
-                    // 2D Cursor Mapping
+                    // Map 2D Coordinates
                     const x = (1 - lm[9].x) * window.innerWidth;
                     const y = lm[9].y * window.innerHeight;
+                    
                     ui.cursor.style.display = 'block';
-                    ui.cursor.style.left = x + 'px';
-                    ui.cursor.style.top = y + 'px';
+                    ui.cursor.style.left = `${x}px`;
+                    ui.cursor.style.top = `${y}px`;
 
-                    // Pinch Logic (Index 8 & Thumb 4)
-                    const d = Math.hypot(lm[8].x - lm[4].x, lm[8].y - lm[4].y);
-                    if(d < 0.05) {
+                    // Pinch Detection (Thumb 4 & Index 8)
+                    const pinch = Math.hypot(lm[8].x - lm[4].x, lm[8].y - lm[4].y);
+                    
+                    if(pinch < 0.05) {
                         ui.cursor.classList.add('locked');
                         if(activeModel) {
-                            // Map 2D -> 3D movement
-                            const mx = (0.5 - lm[9].x) * 5;
-                            const my = (0.5 - lm[9].y) * 3;
-                            activeModel.setAttribute('position', `${mx} ${my} 0`);
+                            // Move 3D Object
+                            // Map Hand(0-1) to A-Frame World Coords (-2 to 2)
+                            const ax = (0.5 - lm[9].x) * 6; 
+                            const ay = (0.5 - lm[9].y) * 4;
+                            activeModel.setAttribute('position', `${ax} ${ay} 0`);
                         }
                     } else {
                         ui.cursor.classList.remove('locked');
                     }
+
                 } else {
-                    ui.handStat.innerText = "HANDS: SEARCHING";
+                    // If no hands, keep status as SCANNING (Logic: System is ON, just looking)
+                    ui.handStat.innerText = "HANDS: SCANNING";
                     ui.handStat.style.borderColor = "#555";
+                    ui.handStat.style.color = "#aaa";
                     ui.cursor.style.display = 'none';
                 }
             }
         };
 
-        // --- 4. AR SPAWNER ---
+        // --- 3. AR SPAWNER ---
         const ar = {
-            spawn: (type, color='#00f2ff') => {
-                ui.anchor.innerHTML = ''; // Clean slate
+            spawn: (type) => {
+                ui.anchor.innerHTML = ''; // Clear
                 const el = document.createElement('a-entity');
                 
-                // Complex Models vs Primitives
                 if(type === 'drone') {
                     el.setAttribute('gltf-model', 'https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Models/master/2.0/CesiumDrone/glTF/CesiumDrone.gltf');
                     el.setAttribute('scale', '0.5 0.5 0.5');
-                } else if (type === 'helmet') {
+                } else if(type === 'helmet') {
                     el.setAttribute('gltf-model', 'https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Models/master/2.0/SciFiHelmet/glTF/SciFiHelmet.gltf');
                     el.setAttribute('scale', '0.3 0.3 0.3');
                 } else {
-                    // Primitive
                     if(type === 'box') el.setAttribute('geometry', 'primitive: box');
-                    else if(type === 'sphere') el.setAttribute('geometry', 'primitive: sphere');
-                    else if(type === 'cone') el.setAttribute('geometry', 'primitive: cone');
-                    
-                    el.setAttribute('material', `color: ${color}; wireframe: true; opacity: 0.8`);
+                    if(type === 'sphere') el.setAttribute('geometry', 'primitive: sphere');
+                    el.setAttribute('material', 'color: #00f2ff; opacity: 0.8; wireframe: true');
                 }
-
-                // Animation
-                el.setAttribute('animation', 'property: rotation; to: 0 360 0; dur: 8000; loop: true; easing: linear');
+                
+                el.setAttribute('animation', 'property: rotation; to: 0 360 0; loop: true; dur: 8000; easing: linear');
                 ui.anchor.appendChild(el);
                 activeModel = el;
+                
                 ui.console.innerText = `>> SPAWNED: ${type.toUpperCase()}`;
+                voice.speak(`${type} generated.`);
             },
             clear: () => {
                 ui.anchor.innerHTML = '';
                 activeModel = null;
+                voice.speak("Workspace cleared.");
             }
         };
 
-        // --- 5. VOICE CORE ---
+        // --- 4. VOICE CORE ---
         const voice = {
             synth: window.speechSynthesis,
             recognition: new (window.SpeechRecognition || window.webkitSpeechRecognition)(),
             
             speak: (text) => {
                 const u = new SpeechSynthesisUtterance(text);
-                u.rate = 1.1; u.pitch = 0.9;
+                u.rate = 1.1;
                 voice.synth.speak(u);
             },
             
@@ -255,31 +251,24 @@
                     ui.console.innerText = `>> CMD: ${txt}`;
                     voice.process(txt);
                 };
-                voice.recognition.onend = () => voice.recognition.start(); // Auto-restart
+                voice.recognition.onend = () => voice.recognition.start();
                 voice.recognition.start();
             },
-
+            
             process: (cmd) => {
-                // AR Commands
                 if(cmd.includes('drone')) ar.spawn('drone');
                 else if(cmd.includes('helmet')) ar.spawn('helmet');
-                else if(cmd.includes('box')) ar.spawn('box', 'cyan');
-                else if(cmd.includes('sphere')) ar.spawn('sphere', 'red');
-                else if(cmd.includes('clear') || cmd.includes('remove')) { ar.clear(); voice.speak("Area cleared."); }
+                else if(cmd.includes('box')) ar.spawn('box');
+                else if(cmd.includes('sphere')) ar.spawn('sphere');
+                else if(cmd.includes('clear')) ar.clear();
                 
-                // Color Change
-                else if(cmd.includes('red') && activeModel) activeModel.setAttribute('material', 'color: red; wireframe: true');
-                else if(cmd.includes('blue') && activeModel) activeModel.setAttribute('material', 'color: blue; wireframe: true');
-                
-                // System
-                else if(cmd.includes('hello')) voice.speak("Online and ready.");
-                else if(cmd.includes('time')) voice.speak("It is " + new Date().toLocaleTimeString());
+                else if(cmd.includes('status')) voice.speak("Systems nominal. Hand tracking active.");
+                else if(cmd.includes('time')) voice.speak(new Date().toLocaleTimeString());
             }
         };
 
-        // Service Worker Reg
+        // Register SW
         if('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js');
-
     </script>
 </body>
     </html>
